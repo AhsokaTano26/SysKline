@@ -29,6 +29,7 @@ type Config struct {
 	HistoryDays int      `toml:"history_days"`
 	Metric      string   `toml:"metric"`
 	Period      string   `toml:"period"`
+	View        string   `toml:"view"`
 	ASCII       bool     `toml:"ascii"`
 	NoColor     bool     `toml:"no_color"`
 	Interfaces  []string `toml:"interfaces"`
@@ -50,7 +51,7 @@ func Default() Config {
 		home, _ := os.UserHomeDir()
 		dir = filepath.Join(home, ".local", "share")
 	}
-	return Config{Interval: "1s", Database: filepath.Join(dir, "syskline", "history.db"), RawDays: 7, HistoryDays: 90, Metric: "cpu", Period: "5s", Colors: Colors{Up: "#f87171", Down: "#4ade80", Accent: "#60a5fa", Text: "#e2e8f0", Muted: "#94a3b8", Grid: "#334155"}}
+	return Config{Interval: "1s", Database: filepath.Join(dir, "syskline", "history.db"), RawDays: 7, HistoryDays: 90, Metric: "cpu", Period: "5s", View: "overview", Colors: Colors{Up: "#f87171", Down: "#4ade80", Accent: "#60a5fa", Text: "#e2e8f0", Muted: "#94a3b8", Grid: "#334155"}}
 }
 
 func Load(path string) (Config, error) {
@@ -87,6 +88,9 @@ func (c Config) Validate() error {
 	}
 	if metrics.PeriodIndex(c.Period) < 0 {
 		return fmt.Errorf("period must be %s", strings.Join(metrics.PeriodNames, ", "))
+	}
+	if c.View != "overview" && c.View != "chart" {
+		return fmt.Errorf("view must be overview or chart")
 	}
 	if strings.TrimSpace(c.Database) == "" {
 		return fmt.Errorf("database path cannot be empty")

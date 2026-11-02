@@ -56,3 +56,16 @@ func TestCLIValidationPrecedenceAndHelp(t *testing.T) {
 		}
 	}
 }
+
+func TestViewFlag(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	for _, view := range []string{"overview", "chart"} {
+		o, err := parse([]string{"--view", view}, &bytes.Buffer{})
+		if err != nil || o.cfg.View != view {
+			t.Fatalf("view %s: %v", view, err)
+		}
+	}
+	if _, err := parse([]string{"--view", "web"}, &bytes.Buffer{}); err == nil {
+		t.Fatal("unknown view accepted")
+	}
+}

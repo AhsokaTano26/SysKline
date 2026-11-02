@@ -30,6 +30,7 @@ func key(m *Model, s string) {
 
 func TestNavigationZoomPauseAndStaleQueries(t *testing.T) {
 	c := config.Default()
+	c.View = "chart"
 	c.Period = "1m"
 	c.NoColor = true
 	m := New(c, nil, nil, "test-host", false)
@@ -85,6 +86,7 @@ func TestNavigationZoomPauseAndStaleQueries(t *testing.T) {
 
 func TestViewsFitTerminalAndASCII(t *testing.T) {
 	c := config.Default()
+	c.View = "chart"
 	c.ASCII = true
 	c.NoColor = true
 	m := New(c, nil, nil, "主机-with-a-very-long-name", true)
@@ -113,6 +115,7 @@ func TestViewsFitTerminalAndASCII(t *testing.T) {
 
 func TestPagePanAndFailedSamplePreserveState(t *testing.T) {
 	c := config.Default()
+	c.View = "chart"
 	c.Period = "1m"
 	m := New(c, nil, nil, "host", false)
 	m.width = 200
@@ -158,6 +161,7 @@ func TestSecondKeysCadenceAndDefaultSpacing(t *testing.T) {
 
 func TestQuoteDetailsWithZeroOpenStayFinite(t *testing.T) {
 	c := config.Default()
+	c.View = "chart"
 	c.NoColor = true
 	m := New(c, nil, nil, "host", false)
 	m.latest = metrics.DemoAt(time.Date(2026, 1, 1, 12, 0, 2, 0, time.UTC))
@@ -186,6 +190,7 @@ func TestMA5HasHistoryWhenZoomedToFourBars(t *testing.T) {
 		}
 	}
 	c := config.Default()
+	c.View = "chart"
 	c.NoColor = true
 	m := New(c, db, nil, "host", false)
 	m.zoom = 4
@@ -198,6 +203,7 @@ func TestMA5HasHistoryWhenZoomedToFourBars(t *testing.T) {
 
 func TestShorterPeriodStartsSamplingWithoutWaitingOldTimer(t *testing.T) {
 	c := config.Default()
+	c.View = "chart"
 	c.Interval = "1m"
 	c.Period = "1d"
 	m := New(c, nil, metrics.Demo{}, "host", false)

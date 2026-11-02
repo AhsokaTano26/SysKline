@@ -30,13 +30,14 @@ func parse(args []string, out io.Writer) (options, error) {
 	var o options
 	fs := flag.NewFlagSet("syskline", flag.ContinueOnError)
 	fs.SetOutput(out)
-	var path, db, interval, metric, period string
+	var path, db, interval, metric, period, view string
 	var ascii, noColor bool
 	fs.StringVar(&path, "config", "", "TOML config file (default: "+config.DefaultPath()+")")
 	fs.StringVar(&db, "db", "", "SQLite history file (overrides config)")
 	fs.StringVar(&interval, "interval", "", "base sample interval, 250ms..1m (default 1s; 1s candles use 250ms)")
 	fs.StringVar(&metric, "metric", "", "initial metric: cpu, memory, swap, disk_read, disk_write, net_rx, net_tx, load1, load5, load15")
 	fs.StringVar(&period, "period", "", "initial candle period: 1s, 5s (default), 15s, 1m, 5m, 15m, 1h, 1d")
+	fs.StringVar(&view, "view", "", "initial view: overview (default) or chart")
 	fs.BoolVar(&ascii, "ascii", false, "use ASCII chart characters")
 	fs.BoolVar(&noColor, "no-color", false, "disable ANSI colors")
 	fs.BoolVar(&o.demo, "demo", false, "synthetic demo with isolated in-memory history")
@@ -78,6 +79,9 @@ func parse(args []string, out io.Writer) (options, error) {
 	}
 	if visited["period"] {
 		c.Period = period
+	}
+	if visited["view"] {
+		c.View = view
 	}
 	if os.Getenv("TERM") == "dumb" {
 		c.ASCII = true

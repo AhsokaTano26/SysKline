@@ -55,3 +55,20 @@ from these smoke checks.
 - Inspected live 120x36 terminal output and deterministic 80x24 / 120x36 rendered
   frames. Text previews are saved in `docs/previews/`; README includes the smaller
   frame. No GUI or browser is part of the product or these checks.
+
+## Comprehensive terminal overview
+
+- Default `--view overview`, with six panels exposing all ten metrics. The layout
+  switches between a 2x3 grid (>=100x36), a watchlist plus focused chart (>=80x22),
+  and a compact table down to 48x16. Enter/o/Esc preserve access to chart detail.
+- AllCandles/AllPoints batch readers share one raw scan, one minute rollup or one
+  indexed seek per point bin. Tests compare all metrics with single-metric readers
+  and check literal OHLC, subsecond ordering, NULL bins and retention boundaries.
+- Overview tests cover focus, shared periods, stale replies, pause, unavailable
+  values, all layout sizes and ASCII. Historical cursor navigation keeps disk
+  write, network TX and all three load values visible; a regression test covers it.
+- Inspected actual rendered frames at 120x40, 80x24 and 60x20, stored under
+  `docs/previews/overview-*.txt`. Rate quote tags now preserve the complete unit.
+- Full tests, race detector, vet, native build, both static Linux builds and demo
+  PTY checks passed. The real Linux ARM64 PTY check passed with 7 persisted samples,
+  20 minute metric bars and a successful SQLite integrity check.

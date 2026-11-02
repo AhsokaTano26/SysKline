@@ -21,10 +21,17 @@ type sampleMsg struct {
 	valid  bool // Source succeeded even if a subsequent database operation failed.
 }
 type historyMsg struct {
-	revision uint64
-	bars     []metrics.Candle
-	points   []metrics.Point
-	err      error
+	revision  uint64
+	bars      []metrics.Candle
+	points    []metrics.Point
+	err       error
+	batch     bool
+	dashboard [metrics.Count]metricHistory
+}
+
+type metricHistory struct {
+	bars   []metrics.Candle
+	points []metrics.Point
 }
 
 type Model struct {
@@ -46,10 +53,12 @@ type Model struct {
 	lastCleanup              time.Time
 	sampling                 bool
 	timerGeneration          uint64
+	overview                 bool
+	dashboard                [metrics.Count]metricHistory
 }
 
 func New(cfg config.Config, db *store.Store, source metrics.Source, host string, demo bool) *Model {
-	return &Model{cfg: cfg, db: db, source: source, host: host, demo: demo, width: 100, height: 30, metric: metrics.Index(cfg.Metric), period: metrics.PeriodIndex(cfg.Period), live: true, showMA: true}
+	return &Model{cfg: cfg, db: db, source: source, host: host, demo: demo, width: 100, height: 30, metric: metrics.Index(cfg.Metric), period: metrics.PeriodIndex(cfg.Period), live: true, showMA: true, overview: cfg.View == "overview"}
 }
 
 func (m *Model) Init() tea.Cmd { return tea.Batch(m.sampleCmd(), m.queryCmd()) }
@@ -57,9 +66,9 @@ func (m *Model) Init() tea.Cmd { return tea.Batch(m.sampleCmd(), m.queryCmd()) }
 func (m *Model) duration() time.Duration { return metrics.Periods[m.period] }
 func (m *Model) visible() int {
 	if m.zoom == 0 {
-		return max(4, min(4092, chart.PlotWidth(m.width)/5))
+		return max(4, min(4092, chart.PlotWidth(m.chartViewportWidth())/5))
 	}
-	return max(4, min(4092, m.zoom, max(4, chart.PlotWidth(m.width)/2)))
+	return max(4, min(4092, m.zoom, max(4, chart.PlotWidth(m.chartViewportWidth())/2)))
 }
 func (m *Model) sampleInterval() time.Duration {
 	return max(250*time.Millisecond, min(m.cfg.IntervalDuration(), m.duration()/4))
@@ -126,6 +135,22 @@ func (m *Model) queryCmd() tea.Cmd {
 	}
 	db, metric, period, end, n, revision := m.db, m.metric, m.duration(), m.windowEnd(), m.visible(), m.revision
 	line, width := m.line, m.width
+	if m.overview {
+		width = m.chartViewportWidth()
+		return func() tea.Msg {
+			result := historyMsg{revision: revision, batch: true}
+			all, err := db.AllCandles(period, end.Add(-time.Nanosecond), n+4)
+			var points [metrics.Count][]metrics.Point
+			if err == nil && line {
+				points, err = db.AllPoints(end.Add(-time.Duration(n)*period), end, min(4096, max(1, chart.PlotWidth(width))))
+			}
+			result.err = err
+			for i := range all {
+				result.dashboard[i] = metricHistory{bars: all[i], points: points[i]}
+			}
+			return result
+		}
+	}
 	return func() tea.Msg {
 		// Four preceding bars allow MA5 to start at the left edge and at 4-bar zoom.
 		bars, err := db.Candles(metric, period, end.Add(-time.Nanosecond), n+4)
@@ -143,7 +168,12 @@ func (m *Model) freeze() {
 		m.live = false
 	}
 }
-func (m *Model) resetHistory() { m.bars = nil; m.points = nil; m.cursor = time.Time{} }
+func (m *Model) resetHistory() {
+	m.bars = nil
+	m.points = nil
+	m.dashboard = [metrics.Count]metricHistory{}
+	m.cursor = time.Time{}
+}
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -180,7 +210,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.historyErr = msg.err.Error()
 		} else {
 			m.historyErr = ""
-			m.bars, m.points = msg.bars, msg.points
+			if msg.batch {
+				m.dashboard = msg.dashboard
+				m.bars = m.dashboard[m.metric].bars
+				m.points = m.dashboard[m.metric].points
+			} else {
+				m.bars, m.points = msg.bars, msg.points
+			}
 		}
 	case tea.KeyMsg:
 		key := msg.String()
@@ -192,7 +228,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if key == "esc" {
-			m.help = false
+			if m.help {
+				m.help = false
+				return m, nil
+			}
+			if !m.overview {
+				m.overview = true
+				m.keepCursorVisible()
+				return m, m.queryCmd()
+			}
 			return m, nil
 		}
 		if m.help {
@@ -203,12 +247,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch key {
 		case "tab", "down", "j":
 			m.metric = (m.metric + 1) % metrics.Count
-			m.resetHistory()
-			query = true
+			if m.overview {
+				m.bars = m.dashboard[m.metric].bars
+				m.points = m.dashboard[m.metric].points
+			} else {
+				m.resetHistory()
+				query = true
+			}
 		case "shift+tab", "up", "k":
 			m.metric = (m.metric + metrics.Count - 1) % metrics.Count
-			m.resetHistory()
-			query = true
+			if m.overview {
+				m.bars = m.dashboard[m.metric].bars
+				m.points = m.dashboard[m.metric].points
+			} else {
+				m.resetHistory()
+				query = true
+			}
+		case "o", "enter":
+			if key == "o" || m.overview {
+				m.overview = !m.overview
+				m.keepCursorVisible()
+				query = true
+			}
 		case "[", "]":
 			delta := 1
 			if key == "[" {

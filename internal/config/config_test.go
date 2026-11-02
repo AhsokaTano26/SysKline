@@ -41,3 +41,20 @@ func TestSecondPeriodsAreSelectable(t *testing.T) {
 		}
 	}
 }
+
+func TestOverviewAndChartViewConfiguration(t *testing.T) {
+	c := Default()
+	if c.View != "overview" {
+		t.Fatal("default view is not overview")
+	}
+	for _, view := range []string{"overview", "chart"} {
+		c.View = view
+		if err := c.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.View = "web"
+	if err := c.Validate(); err == nil {
+		t.Fatal("unknown view accepted")
+	}
+}

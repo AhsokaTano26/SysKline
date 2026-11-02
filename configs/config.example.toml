@@ -6,6 +6,7 @@ raw_days = 7                     # 1 <= raw_days <= history_days <= 3650
 history_days = 90
 metric = "cpu"
 period = "5s"                    # 1s / 5s / 15s / 1m / 5m / 15m / 1h / 1d
+view = "overview"                # overview / chart
 ascii = false
 no_color = false
 interfaces = []                  # e.g. ["eth0", "enp1s0"]. Empty excludes lo.

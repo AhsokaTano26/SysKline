@@ -1,0 +1,20 @@
+ SYSKLINE / OVERVIEW | linux-node       DEMO / LIVE 15:42:17
+ UP 12d07h | RAM 32.0GiB | SWAP 8.0GiB | 10 METRICS | tick 1
+ 1s  [5s]  15s  1m  5m  15m  1h  1d      CANDLES | focus CPU
+METRIC         LAST TREND
+[CPU]         47.6% ▄  ▂  ▄   ▂  ▁   █  ▂
+MEM           67.1% ▇  █  ▇   ▇  ▄   ▁  ▂
+SWAP           6.6% ▁  ▁  ▂   ▃  ▇   ▆  █
+DISK R     5.3MiB/s █  █  ▇   ▆  ▂   ▃  ▁
+DISK W     2.0MiB/s ▇  █  ▆   █  █   ▁  ▆
+NET RX    10.3MiB/s ▇  █  ▇   ▇  ▄   ▁  ▂
+NET TX     1.3MiB/s ▁  ▁  ▂   ▃  ▇   ▆  █
+LOAD 1         2.48 ▄  ▂  ▄   ▂  ▁   █  ▂
+LOAD 5         2.53 █  █  ▇   ▆  ▂   ▃  ▁
+LOAD 15        2.01 ▇  █  ▇   ▇  ▄   ▁  ▂
+
+
+
+
+ Window 15:41:45 - 15:42:20 | 5s bars | LIVE | SYNTHETIC DEM
+ Tab focus  Enter detail  o chart             ? help  q quit

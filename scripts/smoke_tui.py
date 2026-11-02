@@ -57,8 +57,9 @@ def main():
             expect(expected)
 
         try:
-            resize(120, 34)
-            expect(b" O ")
+            resize(120, 40)
+            expect(b"OVERVIEW")
+            send(b"\r", b" O ")
             send(b"1", b"[1s]")
             send(b"m", b"left")
             if not args.live:
@@ -73,6 +74,10 @@ def main():
             send(b"?", b"TERMINAL MARKET")
             send(b"?", b"PAUSED")
             send(b"g", b"LIVE")
+            send(b"o", b"OVERVIEW")
+            send(b"\t", b"[SWAP]")
+            send(b"\r", b" O ")
+            send(b"\x1b", b"OVERVIEW")
             resize(30, 8)
             expect(b"use at least")
             resize(100, 30)
@@ -103,7 +108,7 @@ def main():
                 print(f"PASS: live TUI, SQLite {rows} samples / {bars} bars, integrity ok")
             else:
                 assert b"DEMO" in transcript and b"SYNTHETIC" in transcript
-                print("PASS: demo TUI, seconds/MA/metric/period/line/history/pause/help/resize/quit")
+                print("PASS: demo TUI, overview/detail/seconds/MA/metric/period/line/history/pause/help/resize/quit")
         finally:
             if not reaped:
                 os.kill(pid, signal.SIGKILL)

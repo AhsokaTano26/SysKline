@@ -140,3 +140,12 @@ func TestSmallValuesHaveDistinctAxisTicks(t *testing.T) {
 		t.Fatal("small tick values collapse to 0.0", v)
 	}
 }
+
+func TestLastRateTagKeepsUnitComplete(t *testing.T) {
+	start := time.Now().Truncate(time.Second)
+	bars := []metrics.Candle{{Time: start, Open: 10e6, High: 13e6, Low: 9e6, Close: 12e6}}
+	v := Render(bars, nil, Options{Width: 57, Height: 8, Start: start, End: start.Add(time.Second), Period: time.Second, Metric: metrics.NetRX, ShowLast: true, NoColor: true})
+	if !strings.Contains(v, "C 11.4MiB/s") {
+		t.Fatal("rate tag dropped part of its unit", v)
+	}
+}

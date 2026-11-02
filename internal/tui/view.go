@@ -99,6 +99,9 @@ func (m *Model) View() string {
 	if m.help {
 		return m.fit(m.helpView())
 	}
+	if m.overview {
+		return m.fit(m.overviewView())
+	}
 	color := m.cfg.Colors
 	badge := m.status()
 	if m.demo {
@@ -164,7 +167,7 @@ func (m *Model) View() string {
 	if err := m.errorText(); err != "" {
 		notice = m.paint(" "+err, color.Up, false)
 	}
-	hints := " Tab metric  1-8 / [ ] period  <- -> cursor  +/- zoom  l line  Space pause"
+	hints := " o overview  Tab metric  1-8 period  <- -> cursor  +/- zoom  l line  Space pause"
 	return m.fit(strings.Join([]string{top, m.paint(summary, color.Text, false), tabLine, toolbar, m.quoteLine(), divider, plot, divider, m.paint(ohlc, color.Text, true), detail, m.paint(ioLine, color.Muted, false), notice, m.paint(hints, color.Muted, false)}, "\n"))
 }
 
@@ -200,6 +203,7 @@ func (m *Model) helpView() string {
 	return strings.Join([]string{
 		" SYSKLINE  /  TERMINAL MARKET FOR YOUR MACHINE", "",
 		" Tab / Shift+Tab, Up/Down  Switch metric",
+		" o / Enter / Esc          Overview / open detail / return",
 		" [ / ] or 1..8            1s 5s 15s 1m 5m 15m 1h 1d",
 		" Left / Right             Select OHLC / pan at edge",
 		" PgUp / PgDn              Scroll half a screen",

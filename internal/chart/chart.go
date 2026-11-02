@@ -13,7 +13,7 @@ import (
 )
 
 const axisWidth = 9
-const valueWidth = 11
+const valueWidth = 13
 
 type Options struct {
 	Width, Height                 int
