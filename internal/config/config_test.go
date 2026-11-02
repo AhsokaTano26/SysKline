@@ -58,3 +58,22 @@ func TestOverviewAndChartViewConfiguration(t *testing.T) {
 		t.Fatal("unknown view accepted")
 	}
 }
+
+func TestWindowsInterfaceNamesAndPlatformDataPaths(t *testing.T) {
+	c := Default()
+	c.Interfaces = []string{"Ethernet 2", "vEthernet (Default Switch)"}
+	c.Disks = []string{"PhysicalDrive0"}
+	if err := c.Validate(); err != nil {
+		t.Fatal("Windows adapter names rejected", err)
+	}
+	for _, tc := range []struct{ platform, xdg, local, config, home, expected string }{
+		{"windows", "", "C:/Users/test/AppData/Local", "ignored", "C:/Users/test", "C:/Users/test/AppData/Local/syskline/history.db"},
+		{"darwin", "", "ignored", "/home/test/Library/Application Support", "/home/test", "/home/test/Library/Application Support/syskline/history.db"},
+		{"linux", "", "ignored", "ignored", "/home/test", "/home/test/.local/share/syskline/history.db"},
+		{"windows", "/custom/data", "ignored", "ignored", "ignored", "/custom/data/syskline/history.db"},
+	} {
+		if got := filepath.ToSlash(dataPath(tc.platform, tc.xdg, tc.local, tc.config, tc.home)); got != tc.expected {
+			t.Fatalf("%s: %s", tc.platform, got)
+		}
+	}
+}

@@ -23,28 +23,50 @@ concurrency:
 
 jobs:
   check:
-    name: Tests and terminal checks
-    runs-on: ubuntu-latest
+    name: Native checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            exe: ''
+          - os: macos-latest
+            exe: ''
+          - os: windows-latest
+            exe: '.exe'
+    env:
+      CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
           go-version: '1.26.x'
           cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
       - run: go mod verify
-      - run: go test -race ./...
+      - run: go test ./...
+      - name: Race detector
+        if: runner.os == 'Linux'
+        env:
+          CGO_ENABLED: '1'
+        run: go test -race ./...
       - run: go vet ./...
-      - run: make build
-      - run: python3 scripts/smoke_tui.py
-      - run: python3 scripts/smoke_tui.py --live
-      - name: Native Linux snapshot
-        run: |
-          bin/syskline --once --interval 250ms > /tmp/snapshot.json
-          python3 -c 'import json; s=json.load(open("/tmp/snapshot.json")); assert len(s["metrics"]) == 10; assert s["memory_total_bytes"] > 0'
+      - run: go build -trimpath -o bin/syskline${{ matrix.exe }} ./cmd/syskline
+      - name: Demo terminal interactions
+        if: runner.os != 'Windows'
+        run: python scripts/smoke_tui.py
+      - name: Live terminal interactions
+        if: runner.os != 'Windows'
+        run: python scripts/smoke_tui.py --live
+      - name: Native system snapshot
+        run: python scripts/check_snapshot.py bin/syskline${{ matrix.exe }}
 
   build:
-    name: Linux amd64 and arm64
+    name: Package six platform binaries
     needs: check
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -79,17 +101,15 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
         run: ./scripts/build.sh
       - name: Verify packages and checksums
+        env:
+          BUILD_VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          cd dist
-          sha256sum --check SHA256SUMS
-          for archive in *.tar.gz; do
-            tar -tzf "$archive"
-          done
-          ./syskline-linux-amd64 --version
+          python3 scripts/verify_release.py dist "$BUILD_VERSION"
+          ./dist/syskline-linux-amd64 --version
       - name: Upload downloadable binaries
         uses: actions/upload-artifact@v6
         with:
-          name: syskline-linux-${{ steps.meta.outputs.version }}
+          name: syskline-${{ steps.meta.outputs.version }}
           path: dist/
           if-no-files-found: error
           retention-days: 30
@@ -99,8 +119,8 @@ jobs:
           BUILD_VERSION: ${{ steps.meta.outputs.version }}
         run: |
           printf '## SysKline %s\n\n' "$BUILD_VERSION" >> "$GITHUB_STEP_SUMMARY"
-          printf 'Download **syskline-linux-%s** from this run’s **Artifacts** section.\n\n' "$BUILD_VERSION" >> "$GITHUB_STEP_SUMMARY"
-          printf 'Contains Linux amd64 / arm64 static binaries, tar.gz installation packages and SHA256SUMS.\n' >> "$GITHUB_STEP_SUMMARY"
+          printf 'Download **syskline-%s** from this run’s **Artifacts** section.\n\n' "$BUILD_VERSION" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Contains macOS / Linux / Windows amd64 and arm64 CGO-free binaries, tar.gz / zip installation packages and SHA256SUMS.\n' >> "$GITHUB_STEP_SUMMARY"
 
   release:
     name: Publish tagged release
@@ -111,9 +131,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v6
         with:
-          name: syskline-linux-${{ needs.build.outputs.version }}
+          name: syskline-${{ needs.build.outputs.version }}
           path: dist
       - name: Publish release assets
         env:
@@ -124,5 +145,10 @@ jobs:
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" dist/* --clobber
           else
-            gh release create "$RELEASE_TAG" dist/* --verify-tag --title "SysKline $RELEASE_TAG" --generate-notes
+            notes="docs/release-notes/$RELEASE_TAG.md"
+            if [[ -f "$notes" ]]; then
+              gh release create "$RELEASE_TAG" dist/* --verify-tag --title "SysKline $RELEASE_TAG" --notes-file "$notes"
+            else
+              gh release create "$RELEASE_TAG" dist/* --verify-tag --title "SysKline $RELEASE_TAG" --generate-notes
+            fi
           fi

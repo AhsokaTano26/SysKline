@@ -1,4 +1,6 @@
 # Copy to ~/.config/syskline/config.toml (or $XDG_CONFIG_HOME/syskline/config.toml).
+# macOS: ~/Library/Application Support/syskline/config.toml
+# Windows: %APPDATA%\syskline\config.toml (see README for history paths).
 # Flags override this file. Unknown keys and invalid values are rejected.
 interval = "1s"                  # Base interval: 250ms .. 1m. 1s bars adapt to 250ms.
 # database = "/absolute/path/to/history.db"
@@ -9,8 +11,8 @@ period = "5s"                    # 1s / 5s / 15s / 1m / 5m / 15m / 1h / 1d
 view = "overview"                # overview / chart
 ascii = false
 no_color = false
-interfaces = []                  # e.g. ["eth0", "enp1s0"]. Empty excludes lo.
-disks = []                       # e.g. ["nvme0n1"] or ["dm-0"]. See README.
+interfaces = []                  # e.g. ["eth0"], ["en0"], ["Ethernet 2"]. Empty excludes loopback.
+disks = []                       # Linux ["nvme0n1"], macOS ["disk0"], Windows ["C:"].
 
 [colors]
 up = "#f87171"                  # close >= open

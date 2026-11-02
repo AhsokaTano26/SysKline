@@ -1,4 +1,4 @@
-// SysKline is a Linux terminal system monitor with financial OHLC charts.
+// SysKline is a terminal system monitor with financial OHLC charts.
 package main
 
 import (
@@ -46,7 +46,7 @@ func parse(args []string, out io.Writer) (options, error) {
 	fs.BoolVar(&o.help, "h", false, "show help")
 	fs.BoolVar(&o.version, "version", false, "show version")
 	fs.Usage = func() {
-		fmt.Fprint(out, "SysKline - Linux performance, in candlesticks\n\nUsage: syskline [flags]\n\n")
+		fmt.Fprint(out, "SysKline - System performance, in candlesticks\n\nUsage: syskline [flags]\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -125,10 +125,10 @@ func run(args []string, out, stderr io.Writer) error {
 	if o.demo {
 		source = metrics.Demo{}
 	} else {
-		if runtime.GOOS != "linux" {
-			return fmt.Errorf("live collection requires Linux; use --demo on %s", runtime.GOOS)
+		source, err = metrics.NewSource(o.cfg.Interfaces, o.cfg.Disks)
+		if err != nil {
+			return err
 		}
-		source = metrics.NewCollector("/proc", "/sys", o.cfg.Interfaces, o.cfg.Disks)
 		// Prime cumulative counters so the first displayed rate is measured.
 		if _, err = source.Sample(); err != nil {
 			return err

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/AhsokaTano26/SysKline/internal/metrics"
@@ -36,7 +37,7 @@ func Open(path string) (_ *Store, err error) {
 		if e = f.Close(); e != nil {
 			return nil, e
 		}
-		dsn = (&url.URL{Scheme: "file", Path: abs}).String()
+		dsn = sqliteURI(abs)
 	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -92,6 +93,14 @@ ON CONFLICT(metric,bucket) DO UPDATE SET
 		return nil, err
 	}
 	return s, nil
+}
+
+func sqliteURI(path string) string {
+	uriPath := filepath.ToSlash(path)
+	if len(path) >= 3 && path[1] == ':' {
+		uriPath = "/" + strings.ReplaceAll(path, `\`, "/")
+	}
+	return (&url.URL{Scheme: "file", Path: uriPath}).String()
 }
 
 func (s *Store) Close() error {

@@ -17,12 +17,14 @@ import time
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", nargs="?", default="bin/syskline")
-    parser.add_argument("--live", action="store_true", help="use real Linux metrics")
+    parser.add_argument("--live", action="store_true", help="use real native metrics")
     args = parser.parse_args()
     binary = str(Path(args.binary).resolve())
     with tempfile.TemporaryDirectory(prefix="syskline-smoke-") as temp:
         database = str(Path(temp) / "history.db")
-        command = [binary, "--ascii", "--no-color", "--interval", "250ms"]
+        config = Path(temp) / "config.toml"
+        config.write_text("")
+        command = [binary, "--config", str(config), "--ascii", "--no-color", "--interval", "250ms"]
         command += ["--db", database] if args.live else ["--demo"]
         pid, fd = pty.fork()
         if pid == 0:
@@ -36,6 +38,7 @@ def main():
             os.kill(pid, signal.SIGWINCH)
 
         def expect(text, timeout=10):
+            alternatives = (text,) if isinstance(text, bytes) else text
             pending = bytearray()
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline:
@@ -48,7 +51,7 @@ def main():
                         break
                     pending.extend(chunk)
                     transcript.extend(chunk)
-                    if text in pending:
+                    if any(value in pending for value in alternatives):
                         return
             raise AssertionError(f"TUI did not render {text!r}; tail={pending[-1000:]!r}")
 
@@ -76,7 +79,9 @@ def main():
             send(b"g", b"LIVE")
             send(b"o", b"OVERVIEW")
             send(b"\t", b"[SWAP]")
-            send(b"\r", b" O ")
+            # Optional sources may be unavailable. Opening their detail view
+            # must still work and preserve the missing-data state.
+            send(b"\r", (b" O ", b"No candle at"))
             send(b"\x1b", b"OVERVIEW")
             resize(30, 8)
             expect(b"use at least")

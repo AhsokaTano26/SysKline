@@ -1,6 +1,7 @@
 # SysKline
 
-把 Linux 系统资源变化放进交易终端。纯 Go + Bubble Tea + Lip Gloss，在 SSH
+把系统资源变化放进交易终端。支持 **macOS、Linux、Windows（amd64 / arm64）**，
+纯 Go + Bubble Tea + Lip Gloss，在 SSH
 或本地终端查看实时 OHLC K 线，所有采集、交互和历史存储都在本机完成。
 
 ```text
@@ -51,8 +52,12 @@
 
 ## 快速开始
 
-需要 Go **1.25+**。运行平台为 Linux x86_64 / ARM64，不需要 root、CGO、系统
-SQLite 库、浏览器或图形桌面。建议 80×24 以上终端；较小窗口会裁剪或显示缩放提示。
+直接下载 [最新 Release](https://github.com/AhsokaTano26/SysKline/releases/latest) 中对应系统和
+架构的安装包，解压运行 `syskline`（Windows 为 `syskline.exe`），无需安装 Go。
+Intel / AMD 处理器选择 **amd64**，Apple Silicon / ARM 处理器选择 **arm64**。
+推荐 Windows Terminal、80×24 以上终端；较小窗口自动使用紧凑视图。
+
+从源码构建需要 Go **1.26+**，不需要 root、CGO、系统 SQLite 库、浏览器或图形桌面：
 
 ```sh
 git clone https://github.com/AhsokaTano26/SysKline.git
@@ -72,7 +77,7 @@ syskline
 也可以 `make install PREFIX=/usr/local`，目标目录需要当前用户有写入权限。
 卸载只需删除安装的 `syskline` 文件，历史和配置保留。
 
-在 macOS 开发环境或暂时没有 Linux 时，演示模式可验证完整 TUI：
+三个系统均可直接采集本机指标。演示模式可在不写入真实历史的情况下体验完整 TUI：
 
 ```sh
 ./bin/syskline --demo
@@ -152,8 +157,16 @@ view = "overview" # 或 "chart"
 
 ## 配置与命令行
 
-配置文件默认位于 `$XDG_CONFIG_HOME/syskline/config.toml`，没有设置 XDG 时使用
-`~/.config/syskline/config.toml`（Linux）。配置缺省时直接使用内置默认值。
+配置缺省时直接使用内置默认值。默认配置与历史路径：
+
+| 系统 | 配置文件 | 历史数据库 |
+| --- | --- | --- |
+| Linux | `~/.config/syskline/config.toml` | `~/.local/share/syskline/history.db` |
+| macOS | `~/Library/Application Support/syskline/config.toml` | `~/Library/Application Support/syskline/history.db` |
+| Windows | `%APPDATA%\syskline\config.toml` | `%LOCALAPPDATA%\syskline\history.db` |
+
+Linux 支持 `XDG_CONFIG_HOME`，所有平台可通过 `XDG_DATA_HOME` 改变历史根目录。
+`--config` / `--db` 可显式指定文件路径。以下为 Linux 配置示例：
 
 ```sh
 mkdir -p ~/.config/syskline
@@ -189,6 +202,18 @@ syskline --version
 
 ## 指标语义与历史
 
+Linux 使用 procfs/sysfs；macOS 使用系统原生 API；Windows 使用原生 CPU、内存、
+网络与磁盘计数器。三者均不依赖外部采集进程。平台差异：
+
+- macOS 磁盘按整盘计数，可配置 `disks = ["disk0"]`；网络可配置 `interfaces = ["en0"]`。
+- Windows 磁盘按固定卷汇总，可配置 `disks = ["C:"]`；网络使用系统接口名称，
+  如 `interfaces = ["Ethernet 2"]`。无法读取的磁盘计数器显示 `n/a`。
+- Windows 不提供 Unix 1/5/15 分钟系统负载，三项负载显示 `n/a`；其余图表正常工作。
+- CPU 为主机汇总利用率；内存统一按总量减可用量计算，系统间的可用内存定义略有差异。
+  默认网络汇总排除回环接口，需要精确出口统计时应显式选择接口。
+
+Linux 的具体口径：
+
 - CPU = 两次 `/proc/stat` 读取间非 idle、非 iowait 时间占比；guest 不重复累计。
   这是主机汇总利用率，不按逻辑核数倍增。
 - 内存 = `(MemTotal - MemAvailable) / MemTotal`；老内核使用 free/buffers/cache
@@ -203,8 +228,8 @@ syskline --version
   对应指标显示 `n/a`、JSON 为 `null`、原始数据为 NULL，并跳过该指标的 K 线更新。
   速率尚无基线或计数器重置时也按缺失处理，避免给 K 线制造假的零值。
 
-默认数据库：`$XDG_DATA_HOME/syskline/history.db`，否则为
-`~/.local/share/syskline/history.db`。父目录和新文件分别以 0700 / 0600 创建。
+默认数据库路径见上表，或使用 `$XDG_DATA_HOME/syskline/history.db`。
+在 Unix 上，父目录和新文件分别以 0700 / 0600 创建。
 SQLite 使用 WAL、NORMAL 同步和 4 MiB 页缓存，不需要单独运行数据库服务。
 
 每次采样以一个事务写入原始点并更新 10 项指标的分钟 OHLC。长周期从分钟 OHLC
@@ -229,11 +254,21 @@ incremental vacuum 分批回收空页。每秒采样的原始数据约 60 万行
 选择 **Build binaries**：每次推送 `main` 或 `v*` 标签都会运行；也可点击
 **Run workflow** 手动构建，`version` 可留空（自动生成 `dev-提交号`）或填写版本号。
 
-构建先运行测试、竞态检测和真实终端采集检查，通过后生成 Linux **amd64 / arm64**
-静态可执行文件。进入成功的运行记录，在 **Artifacts** 下载 `syskline-linux-版本`，
-其中包含两个单文件二进制、两个安装压缩包及 `SHA256SUMS`，构建产物保留 30 天。
+构建先在 **macOS、Linux、Windows 原生 runner** 上运行测试、静态检查及真实采集快照，
+Linux 额外运行竞态检测，Unix 运行 PTY 交互检查。全部通过后生成六个 `CGO_ENABLED=0`
+可执行文件。进入成功的运行记录，在 **Artifacts** 下载 `syskline-版本`，
+包含六个单文件二进制、六个安装包及 `SHA256SUMS`，构建产物保留 30 天。
 
-在 Linux 解压对应架构的安装包即可运行，无需安装 Go：
+| 系统 | 安装包（VERSION 为版本号） | 原始单文件 |
+| --- | --- | --- |
+| macOS Intel | `syskline_VERSION_darwin_amd64.tar.gz` | `syskline-darwin-amd64` |
+| macOS Apple Silicon | `syskline_VERSION_darwin_arm64.tar.gz` | `syskline-darwin-arm64` |
+| Linux x86_64 | `syskline_VERSION_linux_amd64.tar.gz` | `syskline-linux-amd64` |
+| Linux ARM64 | `syskline_VERSION_linux_arm64.tar.gz` | `syskline-linux-arm64` |
+| Windows x64 | `syskline_VERSION_windows_amd64.zip` | `syskline-windows-amd64.exe` |
+| Windows ARM64 | `syskline_VERSION_windows_arm64.zip` | `syskline-windows-arm64.exe` |
+
+在 macOS / Linux 解压对应安装包即可运行：
 
 ```sh
 # 将 VERSION 替换为实际下载文件名中的版本号；ARM64 改为 arm64。
@@ -242,13 +277,22 @@ tar -xzf syskline_VERSION_linux_amd64.tar.gz
 ./syskline
 ```
 
-每个安装包包含 `syskline`、MIT 许可证、README 和 `configs/config.example.toml`。
-下载 Actions 产物外层 ZIP 后，可先运行 `sha256sum --check SHA256SUMS` 校验完整性。
-直接使用原始 `syskline-linux-amd64` / `syskline-linux-arm64` 文件时需要 `chmod +x`；
+Windows PowerShell：
+
+```powershell
+Expand-Archive .\syskline_VERSION_windows_amd64.zip -DestinationPath .\syskline
+cd .\syskline
+.\syskline.exe
+```
+
+每个安装包包含可执行文件、MIT 许可证、README 和 `configs/config.example.toml`。
+`SHA256SUMS` 覆盖全部十二项下载文件；Linux 可用 `sha256sum --check SHA256SUMS`，
+macOS 用 `shasum -a 256 -c SHA256SUMS`，Windows 用 `Get-FileHash -Algorithm SHA256` 核对。
+直接使用 Unix 原始单文件时需要 `chmod +x`；
 安装压缩包会保留执行权限。
 
 推送版本标签会在构建通过后自动创建 [GitHub Release](https://github.com/AhsokaTano26/SysKline/releases)
-并上传全部二进制、安装包和校验文件。例如未来发布 `v0.1.0`：
+并上传全部二进制、安装包和校验文件。例如发布版本：
 
 ```sh
 git tag v0.1.0
@@ -262,14 +306,15 @@ git push origin v0.1.0
 ```sh
 make check                  # 单元/集成测试 + go vet
 make race                   # Go race detector（需要本机 C 编译器，仅测试使用）
-make release VERSION=0.1.0  # Linux amd64 / arm64，CGO_ENABLED=0
+make release VERSION=0.1.0  # macOS / Linux / Windows × amd64 / arm64，CGO_ENABLED=0
+python3 scripts/verify_release.py dist 0.1.0 # 格式、架构、压缩包及校验和
 python3 scripts/smoke_tui.py # Unix PTY 演示交互检查，仅用 Python 标准库
-# Linux 上也可运行：python3 scripts/smoke_tui.py --live
+# macOS / Linux：python3 scripts/smoke_tui.py --live
+python3 scripts/check_snapshot.py bin/syskline # Windows 改为 bin/syskline.exe
 ```
 
-发布产物为 `dist/syskline-linux-amd64`、`dist/syskline-linux-arm64`、
-`syskline_版本_linux_amd64.tar.gz` / `syskline_版本_linux_arm64.tar.gz` 和 `SHA256SUMS`。
-复制目标架构对应的一个可执行文件到 Linux 即可运行：
+发布产物全部位于 `dist/`，名称见上表。复制对应单文件即可运行。
+macOS / Linux 可以安装到用户目录，例如 Linux ARM64：
 
 ```sh
 PREFIX="$HOME/.local" ./scripts/install.sh dist/syskline-linux-arm64
@@ -277,9 +322,11 @@ syskline
 ```
 
 `./scripts/build.sh` 也可独立执行，构建无需交叉 C 编译器。`.github/workflows/ci.yml`
-在 Linux 上运行测试、竞态检查、静态检查、双架构构建和真实采集快照。
+在三种系统上验证原生运行，再交叉构建六个目标，并校验真实文件头、压缩包与校验和。
+Windows 无 Make 时直接运行 `go build -o bin/syskline.exe ./cmd/syskline`；
+六目标打包脚本需要 POSIX shell 和 Python 3，可通过 Actions 完成。
 
-代码按 `internal/metrics`（procfs 与演示采集）、`internal/store`（SQLite）、
+代码按 `internal/metrics`（procfs、原生系统与演示采集）、`internal/store`（SQLite）、
 `internal/chart`（单元格绘图）、`internal/tui`（状态与视图）、`internal/config`
 及 `cmd/syskline` 分层。测试覆盖真实临时 SQLite、聚合、清理、采集文件夹具、
 热插拔/计数器重置、视口导航、尺寸裁剪、ASCII 和 CLI 配置覆盖。

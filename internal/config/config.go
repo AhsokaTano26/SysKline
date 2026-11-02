@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -46,12 +47,31 @@ func DefaultPath() string {
 }
 
 func Default() Config {
-	dir := os.Getenv("XDG_DATA_HOME")
-	if dir == "" {
-		home, _ := os.UserHomeDir()
-		dir = filepath.Join(home, ".local", "share")
+	home, _ := os.UserHomeDir()
+	configDir, _ := os.UserConfigDir()
+	database := dataPath(runtime.GOOS, os.Getenv("XDG_DATA_HOME"), os.Getenv("LOCALAPPDATA"), configDir, home)
+	return Config{Interval: "1s", Database: database, RawDays: 7, HistoryDays: 90, Metric: "cpu", Period: "5s", View: "overview", Colors: Colors{Up: "#f87171", Down: "#4ade80", Accent: "#60a5fa", Text: "#e2e8f0", Muted: "#94a3b8", Grid: "#334155"}}
+}
+
+func dataPath(platform, xdg, localAppData, configDir, home string) string {
+	base := xdg
+	if base == "" {
+		switch platform {
+		case "windows":
+			base = localAppData
+			if base == "" {
+				base = filepath.Join(home, "AppData", "Local")
+			}
+		case "darwin":
+			base = configDir
+			if base == "" {
+				base = filepath.Join(home, "Library", "Application Support")
+			}
+		default:
+			base = filepath.Join(home, ".local", "share")
+		}
 	}
-	return Config{Interval: "1s", Database: filepath.Join(dir, "syskline", "history.db"), RawDays: 7, HistoryDays: 90, Metric: "cpu", Period: "5s", View: "overview", Colors: Colors{Up: "#f87171", Down: "#4ade80", Accent: "#60a5fa", Text: "#e2e8f0", Muted: "#94a3b8", Grid: "#334155"}}
+	return filepath.Join(base, "syskline", "history.db")
 }
 
 func Load(path string) (Config, error) {
@@ -102,7 +122,7 @@ func (c Config) Validate() error {
 		}
 	}
 	for _, name := range append(append([]string{}, c.Disks...), c.Interfaces...) {
-		if name == "" || strings.ContainsAny(name, "/\x00\n\r\t ") {
+		if strings.TrimSpace(name) == "" || name != strings.TrimSpace(name) || strings.ContainsAny(name, "/\x00\n\r\t") {
 			return fmt.Errorf("invalid device name %q", name)
 		}
 	}
