@@ -1,0 +1,20 @@
+# Copy to ~/.config/syskline/config.toml (or $XDG_CONFIG_HOME/syskline/config.toml).
+# Flags override this file. Unknown keys and invalid values are rejected.
+interval = "1s"                  # Base interval: 250ms .. 1m. 1s bars adapt to 250ms.
+# database = "/absolute/path/to/history.db"
+raw_days = 7                     # 1 <= raw_days <= history_days <= 3650
+history_days = 90
+metric = "cpu"
+period = "5s"                    # 1s / 5s / 15s / 1m / 5m / 15m / 1h / 1d
+ascii = false
+no_color = false
+interfaces = []                  # e.g. ["eth0", "enp1s0"]. Empty excludes lo.
+disks = []                       # e.g. ["nvme0n1"] or ["dm-0"]. See README.
+
+[colors]
+up = "#f87171"                  # close >= open
+down = "#4ade80"                # close < open
+accent = "#60a5fa"
+text = "#e2e8f0"
+muted = "#94a3b8"
+grid = "#334155"

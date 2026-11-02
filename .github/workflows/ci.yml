@@ -1,0 +1,128 @@
+name: Build binaries
+run-name: SysKline binaries · ${{ github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Optional version label (default: dev-<commit>)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  check:
+    name: Tests and terminal checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+          cache: true
+      - run: go mod verify
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: make build
+      - run: python3 scripts/smoke_tui.py
+      - run: python3 scripts/smoke_tui.py --live
+      - name: Native Linux snapshot
+        run: |
+          bin/syskline --once --interval 250ms > /tmp/snapshot.json
+          python3 -c 'import json; s=json.load(open("/tmp/snapshot.json")); assert len(s["metrics"]) == 10; assert s["memory_total_bytes"] > 0'
+
+  build:
+    name: Linux amd64 and arm64
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+          cache: true
+      - name: Resolve version
+        id: meta
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          elif [[ -n "$MANUAL_VERSION" ]]; then
+            version="$MANUAL_VERSION"
+          else
+            version="dev-${GITHUB_SHA:0:7}"
+          fi
+          if [[ ! "$version" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$ ]]; then
+            echo 'Invalid version: use 1-64 letters, digits, dots, pluses or hyphens.' >&2
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+      - name: Build and package static binaries
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: ./scripts/build.sh
+      - name: Verify packages and checksums
+        run: |
+          cd dist
+          sha256sum --check SHA256SUMS
+          for archive in *.tar.gz; do
+            tar -tzf "$archive"
+          done
+          ./syskline-linux-amd64 --version
+      - name: Upload downloadable binaries
+        uses: actions/upload-artifact@v6
+        with:
+          name: syskline-linux-${{ steps.meta.outputs.version }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Write download summary
+        env:
+          BUILD_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          printf '## SysKline %s\n\n' "$BUILD_VERSION" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Download **syskline-linux-%s** from this run’s **Artifacts** section.\n\n' "$BUILD_VERSION" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Contains Linux amd64 / arm64 static binaries, tar.gz installation packages and SHA256SUMS.\n' >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Publish tagged release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: syskline-linux-${{ needs.build.outputs.version }}
+          path: dist
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* --verify-tag --title "SysKline $RELEASE_TAG" --generate-notes
+          fi
